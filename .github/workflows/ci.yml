@@ -1,40 +1,54 @@
-build-and-push:
-    name: Build & Push Docker Image
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+
+  build-and-push:
+    name: Build & Push Image
     runs-on: ubuntu-latest
     needs: test
-
-    # Izin khusus agar GITHUB_TOKEN bisa push ke ghcr.io
     permissions:
       contents: read
       packages: write
-
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}   # ← output untuk dipakai job lain
+    env:
+      IMAGE_NAME: ghcr.io/moran2-cyber/cicd-demo
 
     steps:
-      - name: Checkout kode
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Login ke ghcr.io pakai GITHUB_TOKEN yang sudah otomatis tersedia
-      - name: Login ke GitHub Container Registry
+      - name: Login ke ghcr.io
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}          # username GitHub kamu
-          password: ${{ secrets.GITHUB_TOKEN }}  # token otomatis, tidak perlu buat manual
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Generate tag otomatis berdasarkan branch, commit, dan event
-      - name: Extract metadata untuk Docker
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix=sha-          # tag: sha-a3f8c2d
-            type=ref,event=branch         # tag: main atau develop
+            type=sha,prefix=sha-
+            type=ref,event=branch
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      # Build dan langsung push ke registry
       - name: Build & Push
         uses: docker/build-push-action@v5
         with:
@@ -42,5 +56,5 @@ build-and-push:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha       # pakai GitHub Actions cache
-          cache-to: type=gha,mode=max  # hemat waktu build sampai ~70%
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

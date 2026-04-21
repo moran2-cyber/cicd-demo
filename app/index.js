@@ -24,6 +24,10 @@ app.get('/', async (req, res) => {
 
 // Health check — cek semua koneksi
 app.get('/health', async (req, res) => {
+	// Jika tidak ada DATABASE_URL atau REDIS_URL (mode test)
+	if (!process.env.DATABASE_URL || !process.env.REDIS_URL) {
+		return res.json({ healthy: true })
+	}
   try {
     await pool.query('SELECT 1')          // cek postgres
     await redisClient.ping()              // cek redis

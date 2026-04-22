@@ -8,34 +8,45 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  IMAGE_NAME: ghcr.io/moran2-cyber/cicd-demo
 
 jobs:
+
+  # ========================
+  # 1️⃣ TEST
+  # ========================
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - run: npm ci
       - run: npm test
 
+
+  # ========================
+  # 2️⃣ BUILD & PUSH IMAGE
+  # ========================
   build-and-push:
     name: Build & Push Image
     runs-on: ubuntu-latest
     needs: test
+
     permissions:
       contents: read
       packages: write
-    env:
-      IMAGE_NAME: ghcr.io/moran2-cyber/cicd-demo
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login ke ghcr.io
+      - name: Login ke GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -60,51 +71,32 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+
+  # ========================
+  # 3️⃣ DEPLOY PRODUCTION
+  # ========================
   deploy-production:
     name: Deploy → Production
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build-and-push
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout kode
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup SSH
+      - name: Login ke GHCR
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.PROD_HOST }} >> ~/.ssh/known_hosts
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+          docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Copy file Compose ke server
+      - name: Pull image terbaru
         run: |
-          scp -i ~/.ssh/deploy_key \
-              docker-compose.yml \
-              docker-compose.prod.yml \
-              ${{ secrets.SERVER_USER }}@${{ secrets.PROD_HOST }}:/app/
+          docker pull $IMAGE_NAME:latest
 
-      - name: Deploy ke VPS
+      - name: Deploy ulang container
         run: |
-          ssh -i ~/.ssh/deploy_key \
-              ${{ secrets.SERVER_USER }}@${{ secrets.PROD_HOST }} << 'ENDSSH'
-            cd /app
-            echo "${{ secrets.GITHUB_TOKEN }}" | \
-              docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-              up -d --no-deps --force-recreate api
-            docker image prune -f
-          ENDSSH
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+          up -d --force-recreate
 
-      - name: Verifikasi deploy
-        run: |
-          sleep 10
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
-            http://${{ secrets.PROD_HOST }}/health)
-          if [ "$response" = "200" ]; then
-            echo "Deploy berhasil!"
-          else
-            echo "Deploy gagal! HTTP $response"
-            exit 1
-          fi
+      - name: Bersihkan image lama
+        run: docker image prune -f

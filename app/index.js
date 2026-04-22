@@ -5,6 +5,16 @@ const redis = require('redis')
 const app = express()
 app.use(express.json())
 
+const client = require('prom-client')
+
+const collectDefaultMetrics = client.collectDefaultMetrics
+collectDefaultMetrics()
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType)
+  res.end(await client.register.metrics())
+})
+
 // Koneksi PostgreSQL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL

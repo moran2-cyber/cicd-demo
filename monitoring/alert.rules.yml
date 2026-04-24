@@ -1,0 +1,53 @@
+groups:
+  - name: production_alerts
+    rules:
+
+      # Alert kalau container mati
+      - alert: ContainerDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.job }} mati"
+          description: "Container tidak bisa di-scrape lebih dari 1 menit"
+
+      # Alert kalau CPU > 80%
+      - alert: HighCPU
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU tinggi di {{ $labels.instance }}"
+          description: "CPU usage {{ $value }}% selama 5 menit"
+
+      # Alert kalau memory > 85%
+      - alert: HighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory tinggi"
+          description: "Memory usage {{ $value }}%"
+
+      # Alert kalau disk > 80%
+      - alert: DiskAlmostFull
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk hampir penuh"
+          description: "Disk usage {{ $value }}%"
+
+      # Alert kalau error rate API > 5%
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate API tinggi"
+          description: "Error rate {{ $value }}% dalam 5 menit terakhir"

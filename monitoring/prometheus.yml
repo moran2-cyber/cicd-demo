@@ -1,0 +1,38 @@
+global:
+  scrape_interval: 15s      # scrape tiap 15 detik
+  evaluation_interval: 15s  # evaluasi alert rules tiap 15 detik
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - "alert.rules.yml"       # file aturan alert (dibuat di step 5)
+
+scrape_configs:
+  # Prometheus scrape dirinya sendiri
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Scrape metrics dari API kita
+  - job_name: 'api'
+    static_configs:
+      - targets: ['api:3000']
+    metrics_path: '/metrics'
+
+  # Scrape metrics container Docker
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Scrape metrics host VPS
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Scrape metrics PostgreSQL
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']

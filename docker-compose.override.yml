@@ -2,7 +2,7 @@ services:
 
   nginx:
     ports:
-      - "8080:80"
+      - "80:80"
 
   api:
     build: .
@@ -20,3 +20,7 @@ services:
   redis:
     ports:
       - "6379:6379"
+
+  grafana:
+    # ports:
+    #  - "3001:3000

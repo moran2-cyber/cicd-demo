@@ -2,13 +2,25 @@ services:
   nginx:
     image: nginx:alpine
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./porto:/usr/share/nginx/html:ro
     depends_on:
       - api
+      - grafana
+      - prometheus
     ports:
-      - "8080:80"
+      - "80:80"
     networks:
       - app-network
+
+  porto:
+    image: nginx:alpine
+    container_name: porto-nginx
+    volumes:
+      - ./porto:/usr/share/nginx/html:ro
+    networks:
+      - app-network
+    restart: unless-stopped
 
   api:
     image: ghcr.io/moran2-cyber/cicd-demo:latest
